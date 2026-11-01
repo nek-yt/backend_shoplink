@@ -1,0 +1,191 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// role, source and status are TEXT columns with CHECK constraints (see migrations/0_init).
+// The allowed values live in src/common/constants.ts.
+
+model User {
+  id             Int            @id @default(autoincrement())
+  name           String
+  email          String?        @unique
+  phone          String?        @unique
+  passwordHash   String?        @map("password_hash")
+  role           String         @default("customer")
+  source         String         @default("other")
+  socialUsername String?        @map("social_username")
+  avatarUrl      String?        @map("avatar_url")
+  telegramId     BigInt?        @unique @map("telegram_id")
+  tiktokId       String?        @unique @map("tiktok_id")
+  instagramId    String?        @unique @map("instagram_id")
+  lastLoginAt    DateTime?      @map("last_login_at") @db.Timestamptz
+  loginCount     Int            @default(0) @map("login_count")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  orders         Order[]
+  logins         Login[]
+  products       Product[]
+  soldItems      OrderItem[]
+  wishlistItems  WishlistItem[]
+  cartItems      CartItem[]
+  reviews        Review[]
+  comments       Comment[]
+
+  @@index([createdAt], map: "idx_users_created")
+  @@map("users")
+}
+
+// One row per successful register or login. method: register, password, telegram, tiktok, instagram.
+model Login {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  method    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_logins_user")
+  @@index([createdAt], map: "idx_logins_created")
+  @@map("logins")
+}
+
+model Product {
+  id            Int            @id @default(autoincrement())
+  name          String
+  description   String         @default("")
+  priceCents    BigInt         @map("price_cents")
+  rating        Float          @default(0)
+  stock         Int            @default(0)
+  sizes         Json           @default("[]")
+  colors        Json           @default("[]")
+  // One of CATEGORIES in src/common/constants.ts.
+  category      String         @default("other")
+  imageUrl      String?        @map("image_url")
+  // Extra pictures (URLs) shown after imageUrl. Managed by POST/DELETE /api/products/{id}/images.
+  images        Json           @default("[]")
+  // Number of reviews and their average stars (null without reviews). Updated by ReviewsService.
+  reviewsCount  Int            @default(0) @map("reviews_count")
+  reviewsRating Float?         @map("reviews_rating")
+  sellerId      Int?           @map("seller_id")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
+  cartItems     CartItem[]
+  reviews       Review[]
+  comments      Comment[]
+  seller        User?          @relation(fields: [sellerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([sellerId], map: "idx_products_seller")
+  @@index([category], map: "idx_products_category")
+  @@map("products")
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  orderNumber  String      @unique @map("order_number")
+  userId       Int         @map("user_id")
+  status       String      @default("new")
+  customerName String      @map("customer_name")
+  phone        String
+  address      String
+  comment      String?
+  source       String
+  totalCents   BigInt      @map("total_cents")
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items        OrderItem[]
+
+  @@index([userId], map: "idx_orders_user")
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  productId   Int?     @map("product_id")
+  productName String   @map("product_name")
+  size        String?
+  color       String?
+  quantity    Int
+  priceCents  BigInt   @map("price_cents")
+  sellerId    Int?     @map("seller_id")
+  seller      User?    @relation(fields: [sellerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([orderId], map: "idx_order_items_order")
+  @@index([productId], map: "idx_order_items_product")
+  @@index([sellerId], map: "idx_order_items_seller")
+  @@map("order_items")
+}
+
+model WishlistItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  productId Int      @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, productId], map: "wishlist_items_user_product_key")
+  @@index([productId], map: "idx_wishlist_items_product")
+  @@map("wishlist_items")
+}
+
+// size and color are '' when the product has none (so the unique key also covers those lines).
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  productId Int      @map("product_id")
+  size      String   @default("")
+  color     String   @default("")
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, productId, size, color], map: "cart_items_line_key")
+  @@index([productId], map: "idx_cart_items_product")
+  @@map("cart_items")
+}
+
+// One per user per product. rating is 1 to 5 (CHECK in migrations/20261029140000_reviews).
+/// Comments on a product: as many as anyone wants. Stars stay in Review (one per user and product).
+model Comment {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  userId    Int      @map("user_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([productId, createdAt], map: "idx_comments_product")
+  @@index([userId], map: "idx_comments_user")
+  @@map("comments")
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  userId    Int      @map("user_id")
+  rating    Int
+  comment   String   @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([productId, userId], map: "reviews_product_user_key")
+  @@index([userId], map: "idx_reviews_user")
+  @@map("reviews")
+}

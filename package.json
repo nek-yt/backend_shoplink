@@ -1,0 +1,53 @@
+{
+  "name": "shoplink-backend",
+  "version": "2.0.0",
+  "description": "ShopLink internet shop backend (NestJS + Prisma + PostgreSQL REST API with Swagger)",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "postinstall": "prisma generate",
+    "predev": "prisma generate && tsx scripts/db-up.ts",
+    "dev": "nest start --watch",
+    "build": "prisma generate && nest build",
+    "start": "node dist/main",
+    "db:migrate": "tsx scripts/db-up.ts",
+    "db:new-migration": "prisma migrate dev --create-only",
+    "db:studio": "prisma studio",
+    "seed": "tsx scripts/seed.ts",
+    "test": "tsc -p tsconfig.test.json && node --test --test-concurrency=1 \"dist-test/test/**/*.spec.js\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
+    "@nestjs/jwt": "^12.0.3",
+    "@nestjs/platform-express": "^12.3.2",
+    "@nestjs/swagger": "^12.0.5",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "bcryptjs": "^3.0.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^18.0.9",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.11",
+    "@nestjs/testing": "^12.3.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  }
+}
