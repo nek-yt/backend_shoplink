@@ -210,6 +210,8 @@ export class OrderResponse {
   items: OrderItemResponse[];
   createdAt: string;
   updatedAt: string;
+  /** Sales only: true when every item in the order is yours, so you can move it through its steps yourself. */
+  sellerCanManage?: boolean;
 }
 
 class PageResponse {

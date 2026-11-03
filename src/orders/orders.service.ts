@@ -200,7 +200,54 @@ export class OrdersService {
       include: { items: { where: { sellerId: seller.id }, orderBy: { id: 'asc' } } },
     });
     if (!order) throw new ApiError(404, 'Order not found');
-    return onlyMyTotal(order);
+    const others = await this.prisma.orderItem.count({ where: { orderId: id, OR: [{ sellerId: { not: seller.id } }, { sellerId: null }] } });
+    return { ...onlyMyTotal(order), sellerCanManage: others === 0 };
+  }
+
+  /**
+   * The seller moves their own sale along (confirm, ship, deliver, cancel), with the same rules as the admin.
+   * Only when every item in the order is theirs: an order with other sellers' items stays with the admin.
+   */
+  async setSaleStatus(seller: User, id: number, status: OrderStatus): Promise<OrderResponse> {
+    const order = await this.prisma.order.findFirst({ where: { id, items: { some: { sellerId: seller.id } } }, include: { items: true } });
+    if (!order) throw new ApiError(404, 'Order not found');
+    if (order.items.some((i) => i.sellerId !== seller.id)) {
+      throw new ApiError(403, "This order also has other sellers' items, so the shop's admin moves it");
+    }
+    this.checkTransition(order, status);
+    await this.changeStatus(order, status);
+    void this.notifyBuyer(order, status).catch(() => {});
+    return this.sale(seller, id);
+  }
+
+  private checkTransition(order: Order, status: OrderStatus) {
+    const allowed = STATUS_TRANSITIONS[order.status as OrderStatus];
+    if (!allowed.includes(status)) {
+      throw new ApiError(
+        409,
+        `Can't change status from ${order.status} to ${status}` + (allowed.length ? ` (allowed: ${allowed.join(', ')})` : ''),
+      );
+    }
+  }
+
+  /** Tells the buyer, live, that their order moved. */
+  private async notifyBuyer(order: Order, status: OrderStatus): Promise<void> {
+    const first = await this.prisma.orderItem.findFirst({ where: { orderId: order.id }, orderBy: { id: 'asc' }, include: { product: true } });
+    const words: Record<OrderStatus, string> = {
+      new: 'is placed',
+      confirmed: 'was confirmed',
+      shipped: 'is on its way',
+      delivered: 'was delivered',
+      cancelled: 'was cancelled',
+    };
+    await this.notifications.send([order.userId], {
+      type: 'order',
+      title: `Your order ${order.orderNumber} ${words[status]}`,
+      body: first?.productName ?? '',
+      link: `/orders/${order.id}`,
+      imageUrl: first?.product?.imageUrl ?? DEFAULT_PRODUCT_IMAGE,
+      data: { orderId: order.id, orderNumber: order.orderNumber, status, productName: first?.productName ?? '' },
+    });
   }
 
   async getByNumber(user: User, orderNumber: string): Promise<OrderResponse> {
@@ -225,14 +272,9 @@ export class OrdersService {
 
   async setStatus(user: User, id: number, status: OrderStatus): Promise<OrderResponse> {
     const order = await this.findVisible(user, id);
-    const allowed = STATUS_TRANSITIONS[order.status as OrderStatus];
-    if (!allowed.includes(status)) {
-      throw new ApiError(
-        409,
-        `Can't change status from ${order.status} to ${status}` + (allowed.length ? ` (allowed: ${allowed.join(', ')})` : ''),
-      );
-    }
+    this.checkTransition(order, status);
     await this.changeStatus(order, status);
+    void this.notifyBuyer(order, status).catch(() => {});
     return this.load(order.id);
   }
 

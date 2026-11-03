@@ -3,7 +3,7 @@ import { paginate } from '../common/query';
 import { PrismaService } from '../database/prisma.service';
 import type { Notification, Prisma } from '../generated/prisma/client';
 
-export type NotificationType = 'sale' | 'report';
+export type NotificationType = 'sale' | 'report' | 'order';
 
 export class NotificationResponse {
   id: number;

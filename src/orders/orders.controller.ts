@@ -88,6 +88,22 @@ export class OrdersController {
     return this.orders.sale(user, id);
   }
 
+  @Patch('sales/:id/status')
+  @Auth()
+  @ApiOperation({
+    summary: 'Move one of my sales along',
+    description: 'new → confirmed → shipped → delivered; new or confirmed → cancelled. Only when every item in the order is yours (`sellerCanManage`). The buyer is notified.',
+  })
+  @ApiNotFoundResponse({ type: ErrorResponse })
+  @ApiConflictResponse({ type: ErrorResponse, description: 'That status change is not allowed' })
+  setSaleStatus(
+    @CurrentUser() user: User,
+    @Param('id', ParseIdPipe) id: number,
+    @Body() body: UpdateOrderStatusDto,
+  ): Promise<OrderResponse> {
+    return this.orders.setSaleStatus(user, id, body.status);
+  }
+
   @Get(':id')
   @Auth()
   @ApiOperation({ summary: 'Get one order', description: 'Your own orders only (admins: any).' })
