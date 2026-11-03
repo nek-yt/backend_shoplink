@@ -159,12 +159,28 @@ export class AuthService {
   }
 }
 
-/** Creates the admin account on first start if it doesn't exist yet. Returns true if it was created. */
+/**
+ * Runs on every start. Creates the ADMIN_EMAIL account if it doesn't exist yet (needs ADMIN_PASSWORD), then makes it
+ * the only admin: an existing account with that email is promoted (its password stays as it is) and every other admin
+ * becomes a customer. Returns true if the account was created.
+ */
 export async function ensureAdmin(prisma: PrismaService, { name, email, password }: AppConfig['admin']): Promise<boolean> {
-  if (!email || !password) return false;
-  const created = await prisma.user.createMany({
-    data: [{ name, email: email.trim().toLowerCase(), passwordHash: await bcrypt.hash(password, 10), role: 'admin', source: 'other' }],
-    skipDuplicates: true,
-  });
-  return created.count > 0;
+  if (!email) return false;
+  const adminEmail = email.trim().toLowerCase();
+  let created = false;
+  if (password) {
+    const result = await prisma.user.createMany({
+      data: [{ name, email: adminEmail, passwordHash: await bcrypt.hash(password, 10), role: 'admin', source: 'other' }],
+      skipDuplicates: true,
+    });
+    created = result.count > 0;
+  }
+  const admin = await prisma.user.findFirst({ where: { email: { equals: adminEmail, mode: 'insensitive' } }, select: { id: true } });
+  if (admin) {
+    await prisma.$transaction([
+      prisma.user.updateMany({ where: { role: 'admin', id: { not: admin.id } }, data: { role: 'customer' } }),
+      prisma.user.update({ where: { id: admin.id }, data: { role: 'admin' } }),
+    ]);
+  }
+  return created;
 }
