@@ -214,6 +214,8 @@ export class OrdersService {
     if (order.items.some((i) => i.sellerId !== seller.id)) {
       throw new ApiError(403, "This order also has other sellers' items, so the shop's admin moves it");
     }
+    // Only the buyer knows it arrived: they mark it delivered (POST /orders/:id/received).
+    if (status === 'delivered') throw new ApiError(403, 'The buyer marks the order delivered when it arrives');
     this.checkTransition(order, status);
     await this.changeStatus(order, status);
     void this.notifyBuyer(order, status).catch(() => {});
@@ -259,6 +261,33 @@ export class OrdersService {
   async get(user: User, id: number): Promise<OrderResponse> {
     const order = await this.findVisible(user, id);
     return this.load(order.id);
+  }
+
+  /** The buyer says the order arrived: shipped → delivered. Each seller in the order is told, live. */
+  async received(user: User, id: number): Promise<OrderResponse> {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order || order.userId !== user.id) throw new ApiError(404, 'Order not found');
+    if (order.status !== 'shipped') throw new ApiError(409, `Only an order on its way can be marked as received (this one is ${order.status})`);
+    await this.changeStatus(order, 'delivered');
+    void this.notifySellersReceived(order, user).catch(() => {});
+    return this.load(order.id);
+  }
+
+  private async notifySellersReceived(order: Order, buyer: User): Promise<void> {
+    const items = await this.prisma.orderItem.findMany({ where: { orderId: order.id }, include: { product: true }, orderBy: { id: 'asc' } });
+    const buyerName = buyer.socialUsername ? `@${buyer.socialUsername}` : buyer.name;
+    const sellers = [...new Set(items.map((i) => i.sellerId).filter((s): s is number => s !== null && s !== buyer.id))];
+    for (const sellerId of sellers) {
+      const mine = items.filter((i) => i.sellerId === sellerId);
+      await this.notifications.send([sellerId], {
+        type: 'order',
+        title: `${buyerName} received order ${order.orderNumber}`,
+        body: mine.map((i) => i.productName).join(', '),
+        link: `/sell/sales/${order.id}`,
+        imageUrl: mine.find((i) => i.product?.imageUrl)?.product?.imageUrl ?? DEFAULT_PRODUCT_IMAGE,
+        data: { orderId: order.id, orderNumber: order.orderNumber, status: 'delivered', forSeller: true, buyerName, productName: mine[0]?.productName ?? '' },
+      });
+    }
   }
 
   async cancel(user: User, id: number): Promise<OrderResponse> {

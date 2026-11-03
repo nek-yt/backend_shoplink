@@ -92,7 +92,7 @@ export class OrdersController {
   @Auth()
   @ApiOperation({
     summary: 'Move one of my sales along',
-    description: 'new → confirmed → shipped → delivered; new or confirmed → cancelled. Only when every item in the order is yours (`sellerCanManage`). The buyer is notified.',
+    description: 'new → confirmed → shipped; new or confirmed → cancelled. The buyer marks it delivered (POST /orders/:id/received). Only when every item in the order is yours (`sellerCanManage`). The buyer is notified.',
   })
   @ApiNotFoundResponse({ type: ErrorResponse })
   @ApiConflictResponse({ type: ErrorResponse, description: 'That status change is not allowed' })
@@ -110,6 +110,16 @@ export class OrdersController {
   @ApiNotFoundResponse({ type: ErrorResponse })
   get(@CurrentUser() user: User, @Param('id', ParseIdPipe) id: number): Promise<OrderResponse> {
     return this.orders.get(user, id);
+  }
+
+  @Post(':id/received')
+  @Auth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'I got my order', description: 'The buyer marks an order that is on its way (shipped) as delivered. The sellers are notified.' })
+  @ApiNotFoundResponse({ type: ErrorResponse })
+  @ApiConflictResponse({ type: ErrorResponse, description: 'Order is not on its way' })
+  received(@CurrentUser() user: User, @Param('id', ParseIdPipe) id: number): Promise<OrderResponse> {
+    return this.orders.received(user, id);
   }
 
   @Post(':id/cancel')
