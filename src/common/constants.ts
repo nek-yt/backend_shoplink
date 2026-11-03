@@ -6,6 +6,13 @@ export const ORDER_STATUSES = ['new', 'confirmed', 'shipped', 'delivered', 'canc
 export const CATEGORIES = ['hoodies', 't-shirts', 'jeans', 'dresses', 'bags', 'shoes', 'jackets', 'accessories', 'other'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
+/** Why a product was reported (CHECK in migrations/20261103120000_reports). */
+export const REPORT_REASONS = ['fake', 'scam', 'offensive', 'wrong_info', 'prohibited', 'other'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+/** open: waiting for an admin; resolved: the admin acted; dismissed: nothing wrong. */
+export const REPORT_STATUSES = ['open', 'resolved', 'dismissed'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
 export type Source = (typeof SOURCES)[number];
 export type LoginMethod = (typeof LOGIN_METHODS)[number];
 export type OrderStatus = (typeof ORDER_STATUSES)[number];

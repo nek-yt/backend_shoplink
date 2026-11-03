@@ -36,6 +36,7 @@ model User {
   cartItems      CartItem[]
   reviews        Review[]
   comments       Comment[]
+  reports        Report[]
 
   @@index([createdAt], map: "idx_users_created")
   @@map("users")
@@ -79,6 +80,7 @@ model Product {
   cartItems     CartItem[]
   reviews       Review[]
   comments      Comment[]
+  reports       Report[]
   seller        User?          @relation(fields: [sellerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([sellerId], map: "idx_products_seller")
@@ -158,6 +160,25 @@ model CartItem {
 }
 
 // One per user per product. rating is 1 to 5 (CHECK in migrations/20261029140000_reviews).
+/// A user flagging a product for the admins. One per user and product. reason and status are CHECKed
+/// in migrations/20261103120000_reports (REPORT_REASONS / REPORT_STATUSES in src/common/constants.ts).
+model Report {
+  id         Int      @id @default(autoincrement())
+  productId  Int      @map("product_id")
+  reporterId Int      @map("reporter_id")
+  reason     String
+  note       String   @default("")
+  status     String   @default("open")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([productId, reporterId], map: "uq_reports_product_reporter")
+  @@index([status, createdAt], map: "idx_reports_status")
+  @@map("reports")
+}
+
 /// Comments on a product: as many as anyone wants. Stars stay in Review (one per user and product).
 model Comment {
   id        Int      @id @default(autoincrement())

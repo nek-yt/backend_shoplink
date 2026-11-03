@@ -61,6 +61,7 @@ export function toProduct(p: Product & { seller?: User | null }): ProductRespons
           name: p.seller.name,
           socialUsername: p.seller.socialUsername,
           avatarUrl: p.seller.avatarUrl ?? defaultAvatarUrl(p.seller),
+          isAdmin: p.seller.role === 'admin',
         }
       : null,
     createdAt: p.createdAt.toISOString(),

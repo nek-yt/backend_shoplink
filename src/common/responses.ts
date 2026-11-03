@@ -137,6 +137,8 @@ export class ProductSellerResponse {
   /** @example aziza.style */
   socialUsername: string | null;
   avatarUrl: string;
+  /** true for admins: the shop shows a badge next to their name. */
+  isAdmin: boolean;
 }
 
 export class ProductResponse {
