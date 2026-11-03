@@ -7,6 +7,7 @@ import { toProduct } from '../common/serializers';
 import { PrismaService } from '../database/prisma.service';
 import type { Product, Report, User } from '../generated/prisma/client';
 import { defaultAvatarUrl } from '../images/images';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** A report as the admins see it: the product (with its seller) and who reported it. */
 export class ReportResponse {
@@ -67,11 +68,15 @@ function toReport(r: Report & { product: Product & { seller: User | null }; repo
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
-  /** Reporting the same product again replaces the reason and opens the report again. */
+  /** Reporting the same product again replaces the reason and opens the report again. Admins don't report: they act. */
   async create(user: User, productId: number, reason: ReportReason, note: string): Promise<ReportReceivedResponse> {
-    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { sellerId: true } });
+    if (user.role === 'admin') throw new ApiError(403, 'Admins handle products from the admin panel instead of reporting them');
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { sellerId: true, name: true, imageUrl: true } });
     if (!product) throw new ApiError(404, 'Product not found');
     if (product.sellerId === user.id) throw new ApiError(400, "You can't report your own product");
     const r = await this.prisma.report.upsert({
@@ -79,6 +84,19 @@ export class ReportsService {
       create: { productId, reporterId: user.id, reason, note },
       update: { reason, note, status: 'open' },
     });
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
+    const reporterName = user.socialUsername ? `@${user.socialUsername}` : user.name;
+    void this.notifications.send(
+      admins.map((a) => a.id),
+      {
+        type: 'report',
+        title: 'A product was reported',
+        body: `${product.name} · ${reason}`,
+        link: '/admin/reports',
+        imageUrl: product.imageUrl,
+        data: { productId, productName: product.name, reason, reporterName },
+      },
+    );
     return { id: r.id, productId: r.productId, reason: r.reason, status: r.status, createdAt: r.createdAt.toISOString() };
   }
 

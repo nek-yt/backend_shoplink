@@ -14,6 +14,8 @@ export class CommentResponse {
   /** @example aziza.style */
   userUsername: string | null;
   userAvatarUrl: string;
+  /** true for admins: the shop shows a badge next to their name. */
+  userIsAdmin: boolean;
   text: string;
   /** true once the author changed the text. */
   edited: boolean;
@@ -45,6 +47,7 @@ function toComment(c: Comment & { user: User }): CommentResponse {
     userName: c.user.name,
     userUsername: c.user.socialUsername,
     userAvatarUrl: c.user.avatarUrl ?? defaultAvatarUrl(c.user),
+    userIsAdmin: c.user.role === 'admin',
     text: c.text,
     edited: c.updatedAt.getTime() - c.createdAt.getTime() > 1000,
     createdAt: c.createdAt.toISOString(),

@@ -37,6 +37,7 @@ model User {
   reviews        Review[]
   comments       Comment[]
   reports        Report[]
+  notifications  Notification[]
 
   @@index([createdAt], map: "idx_users_created")
   @@map("users")
@@ -160,6 +161,25 @@ model CartItem {
 }
 
 // One per user per product. rating is 1 to 5 (CHECK in migrations/20261029140000_reviews).
+/// Something that happened for a user: a sale of their product, a product reported (admins). Pushed live too.
+/// type is CHECKed in migrations/20261104120000_notifications.
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  type      String
+  title     String
+  body      String    @default("")
+  link      String?
+  imageUrl  String?   @map("image_url")
+  data      Json      @default("{}")
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId, createdAt(sort: Desc)], map: "idx_notifications_user")
+  @@map("notifications")
+}
+
 /// A user flagging a product for the admins. One per user and product. reason and status are CHECKed
 /// in migrations/20261103120000_reports (REPORT_REASONS / REPORT_STATUSES in src/common/constants.ts).
 model Report {

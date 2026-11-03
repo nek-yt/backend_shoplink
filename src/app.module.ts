@@ -10,6 +10,7 @@ import { WishlistModule } from './wishlist/wishlist.module';
 import { ProductsModule } from './products/products.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReportsModule } from './reports/reports.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { UsersModule } from './users/users.module';
 
@@ -19,7 +20,7 @@ export class AppModule {
   static forRoot(config: AppConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [DatabaseModule, ImagesModule, AuthModule, UsersModule, ProductsModule, OrdersModule, WishlistModule, CartModule, ReviewsModule, CommentsModule, ReportsModule],
+      imports: [DatabaseModule, ImagesModule, AuthModule, UsersModule, ProductsModule, OrdersModule, WishlistModule, CartModule, ReviewsModule, CommentsModule, ReportsModule, NotificationsModule],
       controllers: [HealthController],
       providers: [{ provide: APP_CONFIG, useValue: config }],
       exports: [APP_CONFIG],

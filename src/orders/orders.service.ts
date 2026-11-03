@@ -7,6 +7,8 @@ import type { OrderPageResponse, OrderResponse } from '../common/responses';
 import { toOrder } from '../common/serializers';
 import { PrismaService } from '../database/prisma.service';
 import type { Order, OrderItem, Product, User } from '../generated/prisma/client';
+import { DEFAULT_PRODUCT_IMAGE } from '../images/images';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateOrderDto } from './dto/order.dto';
 
 const withItems = { items: { orderBy: { id: 'asc' } } } as const;
@@ -44,7 +46,36 @@ export interface OrderFilters {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  /** Tells each seller in the order what was bought from them (not when you buy your own product). */
+  private async notifySellers(orderId: number, buyer: User): Promise<void> {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
+    if (!order) return;
+    const bySeller = new Map<number, typeof order.items>();
+    for (const item of order.items) {
+      if (item.sellerId === null || item.sellerId === buyer.id) continue;
+      bySeller.set(item.sellerId, [...(bySeller.get(item.sellerId) ?? []), item]);
+    }
+    const buyerName = buyer.socialUsername ? `@${buyer.socialUsername}` : buyer.name;
+    for (const [sellerId, items] of bySeller) {
+      const quantity = items.reduce((n, i) => n + i.quantity, 0);
+      const totalCents = items.reduce((n, i) => n + i.priceCents * BigInt(i.quantity), 0n);
+      const names = items.map((i) => (i.quantity > 1 ? `${i.productName} ×${i.quantity}` : i.productName)).join(', ');
+      const image = items.find((i) => i.product?.imageUrl)?.product?.imageUrl ?? DEFAULT_PRODUCT_IMAGE;
+      await this.notifications.send([sellerId], {
+        type: 'sale',
+        title: `${buyerName} bought your product`,
+        body: `${names} · order ${order.orderNumber}`,
+        link: `/sell/sales/${order.id}`,
+        imageUrl: image,
+        data: { buyerName, items: items.map((i) => ({ name: i.productName, quantity: i.quantity })), quantity, total: Number(totalCents) / 100, orderNumber: order.orderNumber, orderId: order.id },
+      });
+    }
+  }
 
   private async load(id: number): Promise<OrderResponse> {
     return toOrder(await this.prisma.order.findUniqueOrThrow({ where: { id }, include: withItems }));
@@ -123,6 +154,8 @@ export class OrdersService {
       });
       return order.id;
     });
+    // After the order is saved: the buyer doesn't wait for the sellers' notifications.
+    void this.notifySellers(orderId, user).catch(() => {});
     return this.load(orderId);
   }
 
