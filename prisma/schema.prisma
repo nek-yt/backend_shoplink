@@ -161,6 +161,18 @@ model CartItem {
 }
 
 // One per user per product. rating is 1 to 5 (CHECK in migrations/20261029140000_reviews).
+/// An uploaded picture (product photo or profile picture), served at /api/uploads/{folder}/{name}.
+/// In the database because hosts like Render's free plan wipe the disk on every deploy.
+model Upload {
+  name        String   @id
+  folder      String
+  contentType String   @map("content_type")
+  data        Bytes
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("uploads")
+}
+
 /// Something that happened for a user: a sale of their product, a product reported (admins). Pushed live too.
 /// type is CHECKed in migrations/20261104120000_notifications.
 model Notification {

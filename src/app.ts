@@ -6,7 +6,6 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { AppValidationPipe } from './common/validation';
-import { UPLOADS_PATH } from './images/images';
 import type { AppConfig } from './config';
 
 const DESCRIPTION = `
@@ -40,8 +39,7 @@ export async function createApp(config: AppConfig): Promise<NestExpressApplicati
   app.use((req: Request, res: Response, next: NextFunction) => (req.path.startsWith('/docs') ? next() : security(req, res, next)));
   app.enableCors({ origin: parseCorsOrigin(config.corsOrigin) });
   app.useBodyParser('json', { limit: '100kb' });
-  // Uploaded pictures. Names are random and never reused, so they can be cached for a long time.
-  app.useStaticAssets(config.uploadDir, { prefix: `${UPLOADS_PATH}/`, index: false, dotfiles: 'deny', maxAge: '30d', immutable: true });
+  // Uploaded pictures are served from the database by UploadsController (GET /api/uploads/{folder}/{name}).
 
   app.setGlobalPrefix('api', { exclude: ['health'] });
   app.useGlobalPipes(new AppValidationPipe());
